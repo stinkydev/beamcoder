@@ -193,7 +193,7 @@ async function darwin() {
 
     console.log('FFmpeg not installed. Attempting to install via Homebrew.');
     try {
-      output = await exec('brew install nasm pkg-config texi2html ffmpeg');
+      output = await exec('brew install nasm pkg-config texi2html ffmpeg@5');
       returnMessage = 'FFmpeg installed via Homebrew.';
     } catch (err) {
       console.log('Failed to install ffmpeg:\n');
