@@ -93,7 +93,7 @@
         "/usr/local/Cellar/ffmpeg@5/5.1.3/include/"
       ],
       "library_dirs": [
-        "/opt/homebrew/Cellar/ffmpeg@5/5.1.3/lib/",
+        "/usr/local/Cellar/ffmpeg@5/5.1.3/lib/",
       ]
     }],
   ]
