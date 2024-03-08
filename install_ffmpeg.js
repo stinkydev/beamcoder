@@ -76,19 +76,76 @@ async function getHTML(url, name) {
   });
 }
 
-async function inflate(rs, folder, name) {
-  const unzip = require('unzipper');
-  const directory = await unzip.Open.file(`${folder}/${name}.zip`);
-  const directoryName = directory.files[0].path;
-  return new Promise((comp, err) => {
-    console.log(`Unzipping '${folder}/${name}.zip'.`);
-    rs.pipe(unzip.Extract({ path: folder }).on('close', () => {
-      fs.rename(`./${folder}/${directoryName}`, `./${folder}/${name}`, () => {
-        console.log(`Unzipping of '${folder}/${name}.zip' completed.`);
-        comp();
+async function unzipFile(archiveName, destFolder) {
+  const yauzl = require('yauzl');
+  const path = require('path');
+
+  let rootPath = '';
+  
+  if (!fs.existsSync(destFolder)){
+    fs.mkdirSync(destFolder);
+  }
+
+  console.log(`Unzipping '${archiveName}' to '${destFolder}'.`);
+  return new Promise((resolve, reject) => {
+    let handles = 0;
+    function decHandles() {
+      handles--;
+      if (handles === 0) {
+        console.log(`Unzipping of '${archiveName}' completed.`);
+        resolve(rootPath);
+      }
+    }
+
+    function incHandles() {
+      handles++;
+    }
+    
+    try {
+      incHandles();
+
+      yauzl.open(archiveName, { lazyEntries: true }, (err, zipfile) => {
+        if (err) reject(err);
+        zipfile.readEntry();
+        zipfile.on('entry', (entry) => {
+          if (/\/$/.test(entry.fileName)) {
+            // Directory file names end with '/'.
+            // Note that entries for directories themselves are optional.
+            // An entry's fileName implicitly requires its parent directories to exist.
+            zipfile.readEntry();
+          } else {
+            // file entry
+            zipfile.openReadStream(entry, (err, readStream) => {
+              if (err) reject(err);
+              readStream.on('end', () => {
+                zipfile.readEntry();
+              });
+
+              const destPath = path.join(destFolder, entry.fileName);
+              if (rootPath === '') {
+                rootPath = entry.fileName.split('/')[0];
+              }
+
+              if (!fs.existsSync(path.dirname(destPath))) {
+                fs.mkdirSync(path.dirname(destPath), { recursive: true });
+              }
+
+              incHandles();
+              const writeFileStream = fs.createWriteStream(destPath);
+              writeFileStream.on('close', () => {
+                decHandles();
+              });
+              readStream.pipe(writeFileStream);
+            });
+          }
+        });
+        zipfile.on('end', () => {
+          decHandles();
+        });
       });
-    }));
-    rs.on('error', err);
+    } catch (err) {
+      reject(new Error(`Error unzipping ${archiveName}: ${err.message}`));
+    }
   });
 }
 
@@ -123,9 +180,9 @@ async function win32() {
         } else console.error(err);
       });
 
-    await exec('npm install unzipper --no-save');
-    let rs_shared = fs.createReadStream(`ffmpeg/${ffmpegFilename}.zip`);
-    await inflate(rs_shared, 'ffmpeg', `${ffmpegFilename}`);
+    await exec('npm install yauzl --no-save');
+    const root = await unzipFile(`ffmpeg/${ffmpegFilename}.zip`, 'ffmpeg');
+    fs.renameSync(`ffmpeg/${root}`, `ffmpeg/${ffmpegFilename}`);
   });
 }
 
